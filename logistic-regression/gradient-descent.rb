@@ -8,7 +8,8 @@
 @number_of_bedrooms = [5, 3, 3, 2]
 @number_of_floors = [1, 2, 2, 1]
 @age_of_home = [45, 40, 30, 36]
-@sale_price = [460000, 232000, 315000, 178000]
+
+@sold_higher_than_expected = [1.0, 1.0, 1.0, 1.0]
 
 @features = [
   @area_in_feet,
@@ -19,12 +20,20 @@
 
 
 # Evaluation functions
-def cost(x, y, m, theta)
-  (1.0 / (2.0 * m)) * (sum_of_errors(x, y, m, theta) ** 2)
+# -y * log(h(x)) - (1 - y) * log(1 - h(x))
+def cost(theta, vector, y)
+  estimate = hypothesis(theta, vector)
+
+  y == 0 ? -Math.log(1.0 - estimate) : -Math.log(estimate)
 end
 
 def derivative_cost(x, y, m, theta)
-  (1.0 / m) * sum_of_errors(x, y, m, theta)
+  error_margin = x
+      .map { |vector| hypothesis(theta, vector) }
+      .map.with_index { |estimate, i| estimate - y[i] }
+      .reduce(:+)
+
+  (1.0 / m) * error_margin
 end
 
 def gradient_descent(x, y, m, alpha, theta)
@@ -35,7 +44,9 @@ def gradient_descent(x, y, m, alpha, theta)
 end
 
 def hypothesis(theta, x)
-  theta.map.with_index { |_t, i| theta[i] * x[i] }.reduce(:+)
+  transpose = theta.map.with_index { |_t, i| theta[i] * x[i] }.reduce(:+)
+
+  1 / (1 + Math::E ** -transpose)
 end
 
 def scale_feature(feature)
@@ -45,42 +56,37 @@ def scale_feature(feature)
   feature.map { |value| (value - feature.min.to_f) / range }
 end
 
-def sum_of_errors(x, y, m, theta)
-  x
-    .map { |vector| hypothesis(theta, vector) }
-    .map.with_index { |estimate, i| estimate - y[i] }
-    .reduce(:+)
-end
-
 
 # Traslate variables into mathematical symbols
-@x = (0..3).to_a.map do |index|
-  [1] + @features.map { |feature| scale_feature(feature)[index] }
-end
+@x = [
+  [1] + @features.map { |feature| scale_feature(feature)[0] },
+  [1] + @features.map { |feature| scale_feature(feature)[1] },
+  [1] + @features.map { |feature| scale_feature(feature)[2] },
+  [1] + @features.map { |feature| scale_feature(feature)[3] },
+]
 
-@y = @sale_price
+@y = @sold_higher_than_expected
 @m = @y.length
 
 
 # Linear regression
 @step_size = 0.0001
 @steps = 0
-@max_steps = 50000
+@max_steps = 20000
 @accuracy_threshold = 0.001
 
 @alpha = @step_size
-@theta = [1.0, rand * 100000, rand * 100000, rand * 100000, rand * 100000]
+@theta = [1.0] + ([rand * 100000] * @features.length)
 
-while @steps < @max_steps && cost(@x, @y, @m, @theta) > @accuracy_threshold do
+while @steps < @max_steps do
   @theta = gradient_descent(@x, @y, @m, @alpha, @theta)
   @steps += 1
 end
 
 puts "--- MULTIVARIATE LINEAR REGRESSION"
 puts "--- Steps taken to optimise cost function to accuracy #{@accuracy_threshold}: #{@steps}"
-puts "--- Cost function accuracy: #{cost(@x, @y, @m, @theta)}"
 puts "--- Theta values: #{@theta}"
 
 @x.each.with_index do |vector, i|
-  puts "At m=#{i}, expected: $#{hypothesis(@theta, vector)}, actual $#{@y[i]}"
+  puts "At m=#{i}, y=0: #{cost(@theta, vector, 0)}, y=1: #{cost(@theta, vector, 1)}, actual #{@y[i]}"
 end
